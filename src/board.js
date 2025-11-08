@@ -1,49 +1,23 @@
 /* Copyright (c) 2021-25 MIT 6.102/6.031 course staff, all rights reserved.
  * Redistribution of original or derived work requires permission of course staff.
  */
-
 import assert from 'node:assert';
 import fs from 'node:fs';
-
-
-/**
- * Represents a space on the board - either empty or containing a card
- */
-type Space = {
-    card: string | null; // null represents an empty space
-    faceUp: boolean; // true if the card is face up on the board
-    controlledBy: string | null; // null if unclaimed, otherwise the name of the player who controls it
-}
-
-/**
- * Represents a player's current state in the game
- */
-
-type PlayerState = {
-    firstCard: {row: number, col: number} | null; // null if no first card selected
-    secondCard: {row: number, col: number} | null; // null if no second card selected
-    matched: boolean; // true if their two cards matched
-}
-
 /**
  * A mutable, thread-safe game board for Memory Scramble.
- * 
+ *
  * The board is a grid of spaces that can contain cards. Players flip cards
  * to find matching pairs. Multiple players can interact with the board
  * concurrently, following the rules in the PS4 handout.
  */
-
 export class Board {
-
-    private readonly rows: number;
-    private readonly cols: number;
-    private readonly grid: Space[][]; // grid[row][col]
-    private readonly players: Map<string, PlayerState>; // player ID -> state
-
+    rows;
+    cols;
+    grid; // grid[row][col]
+    players; // player ID -> state
     // For implementing waiting: when a player tries to flip a card
     // that another player controls, they wait here
-    private readonly waitQueue: Map<string, Array<() => void>>;  // position key -> waiting resolvers
-
+    waitQueue; // position key -> waiting resolvers
     // Abstraction function:
     //   AF(rows, cols, grid, players, waitQueue) = a Memory Scramble game board
     //     with dimensions rows x cols, where grid[r][c] represents the space
@@ -67,36 +41,32 @@ export class Board {
     //   - players is private; methods don't expose the map or player state objects
     //   - waitQueue is private and never exposed
     //   - all constructor parameters are copied into new objects
-
     /**
      * Creates a new Memory Scramble board.
-     * 
+     *
      * @param rows number of rows, must be > 0
      * @param cols number of columns, must be > 0
      * @param cards array of card strings to place on board, must have exactly rows * cols elements
      * @throws Error if dimensions or cards array is invalid
      */
-    private constructor(rows: number, cols: number, cards: string[]) {
+    constructor(rows, cols, cards) {
         assert(rows > 0, "rows must be > 0");
         assert(cols > 0, "cols must be > 0");
         assert(cards.length === rows * cols, "cards array must have exactly rows * cols elements");
-
         this.rows = rows;
         this.cols = cols;
         this.players = new Map();
         this.waitQueue = new Map();
-
         // Initialize grid with cards face down and unclaimed
         this.grid = [];
         let cardIndex = 0;
         for (let r = 0; r < rows; r++) {
-            const row: Space[] = [];
+            const row = [];
             for (let c = 0; c < cols; c++) {
                 const card = cards[cardIndex++];
                 if (card === undefined) {
                     throw new Error(`Card at index ${cardIndex - 1} is undefined`);
                 }
-
                 row.push({
                     card,
                     faceUp: false,
@@ -107,16 +77,14 @@ export class Board {
         }
         this.checkRep();
     }
-
     /**
      * Check the representation invariant.
      * @throws Error if the rep invariant is violated
      */
-    private checkRep(): void {
+    checkRep() {
         assert(this.rows > 0, "rows must be > 0");
         assert(this.cols > 0, "cols must be > 0");
         assert(this.grid.length === this.rows, "grid length must equal rows");
-
         // Check grid dimensions and space invariants
         for (let r = 0; r < this.rows; r++) {
             const row = this.grid[r];
@@ -125,7 +93,6 @@ export class Board {
             for (let c = 0; c < this.cols; c++) {
                 const row = this.grid[r];
                 assert(row !== undefined, `grid[${r}] must be defined`);
-
                 const space = row[c];
                 assert(space !== undefined, `grid[${r}][${c}] must be defined`);
                 // Empty spaces must be face down and not controlled
@@ -139,17 +106,14 @@ export class Board {
                 }
             }
         }
-
         // Check no two players control the same card
-        const controlledPositions = new Set<string>();
+        const controlledPositions = new Set();
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols; c++) {
                 const row = this.grid[r];
                 assert(row !== undefined, `grid[${r}] must be defined`);
-
                 const space = row[c];
                 assert(space !== undefined, `grid[${r}][${c}] must be defined`);
-
                 const controllerId = space.controlledBy;
                 if (controllerId !== null) {
                     const key = `${r},${c}`;
@@ -158,14 +122,12 @@ export class Board {
                 }
             }
         }
-
         // Check player state consistency
         for (const [playerId, state] of this.players) {
             if (state.firstCard) {
                 const { row, col } = state.firstCard;
                 const rowData = this.grid[row];
                 assert(rowData !== undefined, `grid[${row}] must be defined`);
-
                 const space = rowData[col];
                 assert(space !== undefined, `grid[${row}][${col}] must be defined`);
                 assert(space.card !== null, `player ${playerId} first card at (${row},${col}) is empty`);
@@ -179,7 +141,6 @@ export class Board {
                 const { row, col } = state.secondCard;
                 const rowData = this.grid[row];
                 assert(rowData !== undefined, `grid[${row}] must be defined`);
-
                 const space = rowData[col];
                 assert(space !== undefined, `grid[${row}][${col}] must be defined`);
                 assert(space.card !== null, `player ${playerId} second card at (${row},${col}) is empty`);
@@ -191,18 +152,17 @@ export class Board {
             }
         }
     }
-
     /**
      * Get the dimensions of the board.
      *
      * @returns the height and width of the board
      */
-    public getDimensions(): { rows: number; cols: number } {
+    getDimensions() {
         return { rows: this.rows, cols: this.cols };
     }
     /**
      * Look at the board from a player's perspective.
-     * 
+     *
      * @param playerId the player looking at the board
      * @returns string representation of board state in the format specified in PS4 handout:
      *   ROWSxCOLUMNS
@@ -211,33 +171,31 @@ export class Board {
      *   ...
      *   where SPOT is one of: "none", "down", "up CARD", "my CARD"
      */
-    public look(playerId: string): string {
+    look(playerId) {
         let result = `${this.rows}x${this.cols}\n`;
-        
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols; c++) {
                 const row = this.grid[r];
                 assert(row !== undefined, `grid[${r}] must be defined`);
-
                 const space = row[c];
                 assert(space !== undefined, `grid[${r}][${c}] must be defined`);
-                
                 if (space.card === null) {
                     result += 'none\n';
-                } else if (!space.faceUp) {
+                }
+                else if (!space.faceUp) {
                     result += 'down\n';
-                } else if (space.controlledBy === playerId) {
+                }
+                else if (space.controlledBy === playerId) {
                     result += `my ${space.card}\n`;
-                } else {
+                }
+                else {
                     // Face up card controlled by someone else or no one
                     result += `up ${space.card}\n`;
                 }
             }
         }
-        
         return result;
     }
-
     /**
      * Helper to create position key for waitQueue.
      *
@@ -245,14 +203,13 @@ export class Board {
      * @param col - The column index of the position.
      * @returns A string key representing the position in the format "row,col".
      */
-    private posKey(row: number, col: number): string {
+    posKey(row, col) {
         return `${row},${col}`;
     }
-
     /**
      * Flip a card at the given position.
      * Implements the complete game rules from PS4 handout.
-     * 
+     *
      * @param playerId ID of player making the flip
      * @param row row of card to flip, must be in [0, rows)
      * @param col column of card to flip, must be in [0, cols)
@@ -260,10 +217,9 @@ export class Board {
      * @throws Error if flip fails (no card at position, or attempting to flip
      *         a second card that's controlled by someone)
      */
-    public async flip(playerId: string, row: number, col: number): Promise<void> {
+    async flip(playerId, row, col) {
         assert(row >= 0 && row < this.rows, `row ${row} out of bounds`);
         assert(col >= 0 && col < this.cols, `col ${col} out of bounds`);
-        
         // Get or create player state
         if (!this.players.has(playerId)) {
             this.players.set(playerId, {
@@ -272,47 +228,38 @@ export class Board {
                 matched: false
             });
         }
-        
         const playerState = this.players.get(playerId);
         assert(playerState !== undefined, `Player "${playerId}" must exist`);
-
         const rowData = this.grid[row];
         assert(rowData !== undefined, `grid[${row}] must be defined`);
-
         const space = rowData[col];
         assert(space !== undefined, `grid[${row}][${col}] must be defined`);
-        
         // Determine if this is first or second card
         const isFirstCard = playerState.firstCard === null || playerState.secondCard !== null;
-        
         // RULE 3: Before flipping a new first card, finish previous play
         if (isFirstCard) {
             await this.finishPreviousPlay(playerId, playerState);
         }
-        
         if (isFirstCard) {
             await this.flipFirstCard(playerId, playerState, row, col, space);
-        } else {
+        }
+        else {
             await this.flipSecondCard(playerId, playerState, row, col, space);
         }
-        
         this.checkRep();
     }
-
     /**
      * RULE 3: Finish previous play before starting new first card.
      *
      * @param playerId - The ID of the player attempting to flip a card.
      * @param playerState - The current state object associated with the player.
      */
-    private async finishPreviousPlay(playerId: string, playerState: PlayerState): Promise<void> {
+    async finishPreviousPlay(playerId, playerState) {
         if (playerState.secondCard === null) {
             return; // No previous play to finish
         }
-        
         const first = playerState.firstCard;
         const second = playerState.secondCard;
-        
         if (playerState.matched) {
             // RULE 3-A: Remove matched cards
             if (first !== null) {
@@ -321,7 +268,8 @@ export class Board {
             if (second !== null) {
                 this.removeCard(second.row, second.col, playerId);
             }
-        } else {
+        }
+        else {
             // RULE 3-B: Turn non-matching cards face down if not controlled
             if (first !== null) {
                 this.turnDownIfNotControlled(first.row, first.col, playerId);
@@ -330,13 +278,11 @@ export class Board {
                 this.turnDownIfNotControlled(second.row, second.col, playerId);
             }
         }
-        
         // Reset player state
         playerState.firstCard = null;
         playerState.secondCard = null;
         playerState.matched = false;
     }
-
     /**
      * Flip a first card (RULES 1-A through 1-D).
      *
@@ -346,18 +292,11 @@ export class Board {
      * @param col - The column index of the card to flip.
      * @param space - The board space object at the specified position.
      */
-    private async flipFirstCard(
-        playerId: string, 
-        playerState: PlayerState,
-        row: number, 
-        col: number, 
-        space: Space
-    ): Promise<void> {
+    async flipFirstCard(playerId, playerState, row, col, space) {
         // RULE 1-A: No card there
         if (space.card === null) {
             throw new Error(`no card at (${row},${col})`);
         }
-        
         // RULE 1-D: Card controlled by another player - WAIT
         while (space.controlledBy !== null && space.controlledBy !== playerId) {
             await this.waitForCard(row, col);
@@ -366,13 +305,11 @@ export class Board {
                 throw new Error(`no card at (${row},${col})`);
             }
         }
-        
         // RULE 1-B and 1-C: Take control
         space.faceUp = true;
         space.controlledBy = playerId;
         playerState.firstCard = { row, col };
     }
-
     /**
      * Flip a second card (RULES 2-A through 2-D).
      *
@@ -382,23 +319,16 @@ export class Board {
      * @param col - The column index of the card to flip.
      * @param space - The board space object at the specified position.
      */
-    private async flipSecondCard(
-        playerId: string,
-        playerState: PlayerState,
-        row: number,
-        col: number,
-        space: Space
-    ): Promise<void> {
+    async flipSecondCard(playerId, playerState, row, col, space) {
         const first = playerState.firstCard;
-        let firstSpace: Space | undefined = undefined;
+        let firstSpace = undefined;
         if (first !== null) {
             const rowData = this.grid[first.row];
             assert(rowData !== undefined, `grid[${first.row}] must be defined`);
-
             firstSpace = rowData[first.col];
             assert(firstSpace !== undefined, `grid[${first.row}][${first.col}] must be defined`);
         }
-        
+        console.log(`DEBUG: Before checking second card, firstSpace.controlledBy = ${firstSpace?.controlledBy}`);
         // RULE 2-A: No card there
         if (space.card === null) {
             assert(firstSpace !== undefined, `firstSpace must be defined before relinquishing control`);
@@ -409,7 +339,6 @@ export class Board {
             playerState.firstCard = null;
             throw new Error(`no card at (${row},${col})`);
         }
-        
         // RULE 2-B: Card controlled by a player (to avoid deadlock, don't wait)
         if (space.controlledBy !== null) {
             assert(firstSpace !== undefined, `firstSpace must be defined before relinquishing control`);
@@ -420,53 +349,49 @@ export class Board {
             playerState.firstCard = null;
             throw new Error(`card at (${row},${col}) is controlled by another player`);
         }
-        
+        console.log(`DEBUG: Before turning up second card, firstSpace.controlledBy = ${firstSpace?.controlledBy}`);
         // RULE 2-C: Turn face up if needed
         space.faceUp = true;
-        
+        console.log(`DEBUG: After turning up second card, firstSpace.controlledBy = ${firstSpace?.controlledBy}`);
         // RULE 2-D and 2-E: Check if cards match
         assert(firstSpace !== undefined, `firstSpace must be defined before checking match`);
-        
+        console.log(`DEBUG: firstSpace.card = '${firstSpace.card}', space.card = '${space.card}'`);
         if (firstSpace.card === space.card) {
             // Match! Keep control of both
             space.controlledBy = playerId;
             playerState.secondCard = { row, col };
             playerState.matched = true;
-        } else {
+            console.log(`DEBUG: Match! Set second card control. firstSpace.controlledBy = ${firstSpace.controlledBy}`);
+        }
+        else {
             // RULE 2-E: No match - relinquish control of both cards but leave face up
             firstSpace.controlledBy = null;
-            if (first !== null) this.notifyWaiters(first.row, first.col);
-
+            if (first !== null)
+                this.notifyWaiters(first.row, first.col);
             // Don't take control of second card, just leave it face up
-            // Keep firstCard and secondCard set so finishPreviousPlay can turn them down
             playerState.secondCard = { row, col };
+            playerState.firstCard = null;
             playerState.matched = false;
-            // NOTE: Don't set firstCard = null here! We need it for finishPreviousPlay (RULE 3-B)
+            console.log(`DEBUG: No match! Relinquished control.`);
         }
     }
-
     /**
      * Wait for a card to become available (not controlled by another player).
      *
      * @param row - The row index of the card to monitor.
      * @param col - The column index of the card to monitor.
      */
-    private async waitForCard(row: number, col: number): Promise<void> {
+    async waitForCard(row, col) {
         const key = this.posKey(row, col);
-        
-        const { promise, resolve } = Promise.withResolvers<void>();
-        
+        const { promise, resolve } = Promise.withResolvers();
         if (!this.waitQueue.has(key)) {
             this.waitQueue.set(key, []);
         }
-        
         const queue = this.waitQueue.get(key);
         assert(queue !== undefined, `waitQueue entry for key "${key}" must be initialized`);
         queue.push(resolve);
-
         await promise;
     }
-
     /**
      * Remove a card from the board and notify waiters.
      *
@@ -474,21 +399,18 @@ export class Board {
      * @param col - The column index of the card to remove.
      * @param playerId - The ID of the player who controlled the card.
      */
-    private removeCard(row: number, col: number, playerId: string): void {
+    removeCard(row, col, playerId) {
         const rowData = this.grid[row];
         assert(rowData !== undefined, `grid[${row}] must be defined`);
         const colData = rowData[col];
         assert(colData !== undefined, `grid[${row}][${col}] must be defined`);
         const space = colData;
         assert(space.controlledBy === playerId, 'can only remove cards you control');
-        
         space.card = null;
         space.faceUp = false;
         space.controlledBy = null;
-        
         this.notifyWaiters(row, col);
     }
-
     /**
      * Turn a card face down if it's not controlled by anyone.
      * RULE 3-B: Turn down cards that are face up and not controlled by another player.
@@ -497,12 +419,11 @@ export class Board {
      * @param col - The column index of the card to turn down.
      * @param expectedController - The player who previously controlled this card
      */
-    private turnDownIfNotControlled(row: number, col: number, expectedController: string): void {
+    turnDownIfNotControlled(row, col, expectedController) {
         const rowData = this.grid[row];
         assert(rowData !== undefined, `grid[${row}] must be defined`);
         const space = rowData[col];
         assert(space !== undefined, `grid[${row}][${col}] must be defined`);
-
         // Only turn down if: card exists, is face up, and is NOT controlled by another player
         // (controlledBy is null or is still the expectedController)
         if (space.card !== null && space.faceUp && space.controlledBy === null) {
@@ -510,17 +431,15 @@ export class Board {
             this.notifyWaiters(row, col);
         }
     }
-
     /**
      * Notify all players waiting for a specific card.
      *
      * @param row - The row index of the card being released.
      * @param col - The column index of the card being released.
      */
-    private notifyWaiters(row: number, col: number): void {
+    notifyWaiters(row, col) {
         const key = this.posKey(row, col);
         const waiters = this.waitQueue.get(key);
-        
         if (waiters) {
             // Notify all waiters
             for (const resolve of waiters) {
@@ -529,14 +448,13 @@ export class Board {
             this.waitQueue.delete(key);
         }
     }
-
     /**
      * String representation of the board.
      * Shows all cards face up for debugging.
-     * 
+     *
      * @returns string representation
      */
-    public toString(): string {
+    toString() {
         let result = `Board ${this.rows}x${this.cols}:\n`;
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols; c++) {
@@ -547,7 +465,8 @@ export class Board {
                 const space = col;
                 if (space.card === null) {
                     result += '[     ] ';
-                } else {
+                }
+                else {
                     const CONTROL_ID_LENGTH = 3;
                     const control = space.controlledBy !== null ? `@${space.controlledBy.substring(0, CONTROL_ID_LENGTH)}` : '    ';
                     const face = space.faceUp ? '↑' : '↓';
@@ -558,21 +477,18 @@ export class Board {
         }
         return result;
     }
-
-
     /**
      * Make a new board by parsing a file.
-     * 
+     *
      * PS4 instructions: the specification of this method may not be changed.
-     * 
+     *
      * @param filename path to game board file
      * @returns a new board with the size and cards from the file
      * @throws Error if the file cannot be read or is not a valid game board
      */
-    public static async parseFromFile(filename: string): Promise<Board> {
+    static async parseFromFile(filename) {
         const content = await fs.promises.readFile(filename, { encoding: 'utf-8' });
         const lines = content.split(/\r?\n/);
-
         // Parse first line: "ROWSxCOLUMNS"
         const firstLine = lines[0];
         assert(firstLine !== undefined, `grid[${0}] must be defined`);
@@ -585,13 +501,11 @@ export class Board {
         }
         const rows = parseInt(match[1]);
         const cols = parseInt(match[2]);
-        
         if (rows <= 0 || cols <= 0) {
             throw new Error(`Invalid dimensions: ${rows}x${cols}`);
         }
-
         // Parse card lines
-        const cards: string[] = [];
+        const cards = [];
         for (let i = 1; i < lines.length; i++) {
             const line = lines[i];
             // Skip empty last line (common in text files)
@@ -607,12 +521,9 @@ export class Board {
             }
             cards.push(line);
         }
-        
         if (cards.length !== rows * cols) {
             throw new Error(`Expected ${rows * cols} cards for ${rows}x${cols} board, got ${cards.length}`);
         }
-        
         return new Board(rows, cols, cards);
-
     }
 }
