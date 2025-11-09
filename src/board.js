@@ -350,7 +350,7 @@ export class Board {
         }
         // RULE 2-C: Turn face up if needed
         space.faceUp = true;
-        // RULE 2-D and 2-E: Check if cards match
+        // RULE 2-D: Check if cards match
         assert(firstSpace !== undefined, `firstSpace must be defined before checking match`);
         if (firstSpace.card === space.card) {
             // Match! Keep control of both
@@ -367,7 +367,6 @@ export class Board {
             // Keep firstCard and secondCard set so finishPreviousPlay can turn them down
             playerState.secondCard = { row, col };
             playerState.matched = false;
-            // NOTE: Don't set firstCard = null here! We need it for finishPreviousPlay (RULE 3-B)
         }
     }
     /**

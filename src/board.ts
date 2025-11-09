@@ -442,7 +442,7 @@ export class Board {
         // Notify watchers if card state changed
         this.notifyChangeListeners();
         
-        // RULE 2-D and 2-E: Check if cards match
+        // RULE 2-D: Check if cards match
         assert(firstSpace !== undefined, `firstSpace must be defined before checking match`);
         
         if (firstSpace.card === space.card) {
@@ -459,7 +459,6 @@ export class Board {
             // Keep firstCard and secondCard set so finishPreviousPlay can turn them down
             playerState.secondCard = { row, col };
             playerState.matched = false;
-            // NOTE: Don't set firstCard = null here! We need it for finishPreviousPlay (RULE 3-B)
         }
     }
 

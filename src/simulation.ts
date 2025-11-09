@@ -202,11 +202,20 @@ async function testMatchedCardsScenario(): Promise<void> {
     
     // Bob tries to take one of Alice's matched cards - should wait
     console.log('\n[Bob] Trying to flip (0,0) which Alice controls...');
-    const bobPromise = board.flip('bob', 0, 0).then(() => {
-        console.log('[Bob] Card was removed (Alice made next move)');
-    }).catch((err: Error) => {
-        console.log(`[Bob] Failed as expected: ${err.message}`);
-    });
+    
+    let bobGotError = false;
+    const bobPromise = board.flip('bob', 0, 0)
+        .then(() => {
+            // This should NOT happen - card should be removed
+            console.log('[Bob] ERROR: Successfully got the card (should have been removed!)');
+            throw new Error('Test failed: Bob should not get a removed card');
+        })
+        .catch((err: Error) => {
+            // This SHOULD happen - card was removed while Bob was waiting
+            bobGotError = true;
+            console.log(`[Bob] Failed as expected: ${err.message}`);
+        });
+    
     const timeOut = 10;
     await timeout(timeOut);
     console.log('[System] Bob is waiting...');
@@ -215,9 +224,15 @@ async function testMatchedCardsScenario(): Promise<void> {
     console.log('\n[Alice] Making next move - matched cards should be removed');
     await board.flip('alice', 1, 1);
     
+    // Wait for Bob's promise to complete
     await bobPromise;
     
-    console.log('\n Test passed: Matched cards removed correctly\n');
+    // Verify Bob got an error
+    if (!bobGotError) {
+        throw new Error('Test failed: Bob should have received an error for removed card');
+    }
+    
+    console.log('\nTest passed: Matched cards removed correctly, waiter notified\n');
 }
 
 /**
