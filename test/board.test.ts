@@ -464,6 +464,41 @@ describe('Board', function() {
             
             await fs.promises.unlink(filename);
         });
+        
+        it('should turn down card that was controlled by another but no longer is', async function() {
+            const filename = 'test-boards/finish4.txt';
+            await fs.promises.mkdir('test-boards', { recursive: true });
+            await fs.promises.writeFile(filename, '3x3\nA\nB\nC\nA\nD\nD\nE\nE\nF\n');
+            
+            const board = await Board.parseFromFile(filename);
+            
+            // P1 flips C1 (A at 0,0)
+            await board.flip('player1', 0, 0);  // A
+            // P1 flips C2 (B at 0,1) - no match, loses control of both
+            await board.flip('player1', 0, 1);  // B - no match, relinquishes
+            
+            // P2 takes control of C1 (A at 0,0)
+            await board.flip('player2', 0, 0);  // A (face up, uncontrolled)
+            // P2 flips C3 (C at 0,2) - no match, loses control of both
+            await board.flip('player2', 0, 2);  // C - no match, relinquishes
+            
+            // Now C1 (0,0) is face up but not controlled by anyone
+            // P1's previous cards were (0,0) and (0,1)
+            
+            // P1 starts new move - flips C4 (D at 1,1)
+            await board.flip('player1', 1, 1);  // D
+            
+            // C1 (0,0) should be turned face down (was P1's card, now uncontrolled)
+            // C2 (0,1) should be turned face down (was P1's card, now uncontrolled)
+            // C3 (0,2) should stay face up (was never P1's card)
+            const view = board.look('player1');
+            const lines = view.split('\n');
+            assert.strictEqual(lines[1], 'down', 'C1 (0,0) should be face down');
+            assert.strictEqual(lines[2], 'down', 'C2 (0,1) should be face down');
+            assert.strictEqual(lines[3], 'up C', 'C3 (0,2) should remain face up (not P1\'s card)');
+            
+            await fs.promises.unlink(filename);
+        });
     });
 
     // ========== Concurrency tests ==========
