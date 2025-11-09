@@ -571,11 +571,15 @@ describe('Board', function() {
             const view1 = board.look('player1');
             const view2 = board.look('player2');
             const view3 = board.look('player3');
+            const view4 = board.look('player4');
+            const view5 = board.look('player5');
             
             assert(view1.includes('my A'));
             assert(view2.includes('my B'));
             assert(view3.includes('my C'));
-            
+            assert(view4.includes('my D'));
+            assert(view5.includes('my E'));
+
             await fs.promises.unlink(filename);
         });
         
