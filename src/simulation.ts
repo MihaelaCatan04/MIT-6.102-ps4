@@ -26,11 +26,13 @@ async function simulationMain(): Promise<void> {
     console.log(board.toString());
     
     // Configuration
-    const players = 3;  // Multiple concurrent players
-    const tries = 10;   // Each player makes 10 attempts
-    const maxDelayMilliseconds = 50;  // Random delays between moves
+    const players = 4;  // Multiple concurrent players
+    const tries = 100;   // Each player makes 100 attempts
+    const minDelayMilliseconds = 0.1;  // Minimum random delay
+    const maxDelayMilliseconds = 2;  // Maximum random delay between moves
     
-    console.log(`\nStarting simulation with ${players} players, ${tries} attempts each\n`);
+    console.log(`\nStarting simulation with ${players} players, ${tries} attempts each`);
+    console.log(`Random delays between ${minDelayMilliseconds}ms and ${maxDelayMilliseconds}ms\n`);
     
     // Track statistics
     const stats = {
@@ -71,8 +73,8 @@ async function simulationMain(): Promise<void> {
 
         for (let jj = 0; jj < tries; ++jj) {
             try {
-                // Random delay before first card
-                await timeout(Math.random() * maxDelayMilliseconds);
+                // Random delay before first card (between 0.1ms and 2ms)
+                await timeout(minDelayMilliseconds + Math.random() * (maxDelayMilliseconds - minDelayMilliseconds));
                 
                 // Try to flip a first card at random position
                 const firstRow = randomInt(rows);
@@ -91,8 +93,8 @@ async function simulationMain(): Promise<void> {
                     console.log(`${color}[${playerId}]   → Waited ${waitTime}ms for card${reset}`);
                 }
 
-                // Random delay before second card
-                await timeout(Math.random() * maxDelayMilliseconds);
+                // Random delay before second card (between 0.1ms and 2ms)
+                await timeout(minDelayMilliseconds + Math.random() * (maxDelayMilliseconds - minDelayMilliseconds));
                 
                 // Try to flip a second card at random position
                 const secondRow = randomInt(rows);
