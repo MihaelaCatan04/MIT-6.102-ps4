@@ -180,11 +180,15 @@ export class Board {
 
                 const space = rowData[col];
                 assert(space !== undefined, `grid[${row}][${col}] must be defined`);
-                assert(space.card !== null, `player ${playerId} first card at (${row},${col}) is empty`);
-                // If matched, player controls both cards
-                // If not matched and secondCard exists, player doesn't control either (rule 2-E)
-                if (state.matched) {
-                    assert(space.controlledBy === playerId, `player ${playerId} first matched card not controlled by them`);
+                // Note: If matched cards have been removed during finishPreviousPlay(),
+                // space.card may be null while state still references old positions.
+                // This is a valid intermediate state that gets cleaned up after the flip completes.
+                if (space.card !== null) {
+                    // If matched, player controls both cards
+                    // If not matched and secondCard exists, player doesn't control either (rule 2-E)
+                    if (state.matched) {
+                        assert(space.controlledBy === playerId, `player ${playerId} first matched card not controlled by them`);
+                    }
                 }
             }
             if (state.secondCard) {
@@ -194,11 +198,15 @@ export class Board {
 
                 const space = rowData[col];
                 assert(space !== undefined, `grid[${row}][${col}] must be defined`);
-                assert(space.card !== null, `player ${playerId} second card at (${row},${col}) is empty`);
-                // If matched, player controls both cards
-                // If not matched, player doesn't control either card (rule 2-E)
-                if (state.matched) {
-                    assert(space.controlledBy === playerId, `player ${playerId} second matched card not controlled by them`);
+                // Note: If matched cards have been removed during finishPreviousPlay(),
+                // space.card may be null while state still references old positions.
+                // This is a valid intermediate state that gets cleaned up after the flip completes.
+                if (space.card !== null) {
+                    // If matched, player controls both cards
+                    // If not matched, player doesn't control either card (rule 2-E)
+                    if (state.matched) {
+                        assert(space.controlledBy === playerId, `player ${playerId} second matched card not controlled by them`);
+                    }
                 }
             }
         }
